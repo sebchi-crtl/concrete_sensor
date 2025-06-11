@@ -1,103 +1,249 @@
-import Image from "next/image";
+'use client'
+
+import { useTemperatureStore } from '../store/temperatureStore';
+import { 
+  Thermometer, 
+  Droplets, 
+  Gauge, 
+  TrendingUp, 
+  Activity,
+  Calendar,
+  MapPin,
+  Zap,
+  Database,
+  Wifi
+} from 'lucide-react';
+import { format } from 'date-fns';
+import { MetricCard } from './_components/MetricCard';
+import { TemperatureCharts } from './_components/TemperatureCharts';
+import { DeviceStatus } from './_components/DeviceStatus';
+import { useQuery } from '@tanstack/react-query';
+import { database } from '@/lib/firebase';
+import { get, ref } from 'firebase/database';
 
 export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm/6 text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-[family-name:var(--font-geist-mono)] font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const { data: firebaseData, isLoading, error } = useQuery({
+    queryKey: ['temperature'],
+    queryFn: async () => {
+      const readingsRef = ref(database, 'readings');
+      const snapshot = await get(readingsRef);
+      return snapshot.val();
+    },
+    refetchInterval: 5000, // Refetch every 5 seconds
+  });
+  
+  const { 
+    getAllReadings,
+    currentReading, 
+    getAverageTemperature, 
+    getTemperatureRange,
+    firebaseReadings
+  } = useTemperatureStore();
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const allReadings = getAllReadings();
+  const avgTemp = getAverageTemperature();
+  const tempRange = getTemperatureRange();
+  
+  // Calculate trends
+  const recentReadings = allReadings.slice(-5);
+  const tempTrend = recentReadings.length > 1 
+    ? recentReadings[recentReadings.length - 1].temperature - recentReadings[0].temperature
+    : 0;
+
+  // Get unique locations and devices
+  const uniqueLocations = [...new Set(allReadings.map(r => r.location))];
+  const uniqueDevices = [...new Set(allReadings.map(r => r.deviceId))];
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-lg text-gray-600">Loading Firebase data...</p>
+          <p className="text-sm text-gray-500">Connecting to database...</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
+        <div className="text-center max-w-md">
+          <div className="text-red-600 text-6xl mb-4">⚠️</div>
+          <h2 className="text-xl font-semibold text-red-800 mb-2">Firebase Connection Error</h2>
+          <p className="text-red-600 mb-4">{error.message}</p>
+          <div className="bg-red-100 border border-red-300 rounded-lg p-4 text-left">
+            <p className="text-sm text-red-700 mb-2">Please check:</p>
+            <ul className="text-xs text-red-600 space-y-1">
+              <li>• Firebase configuration in .env.local</li>
+              <li>• Database rules allow read access</li>
+              <li>• "readings" collection exists in Firebase</li>
+              <li>• Internet connection is stable</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Temperature Dashboard</h1>
+              <p className="text-gray-600 mt-1">Real-time Firebase monitoring system</p>
+              <div className="flex items-center mt-2 space-x-4">
+                <div className="flex items-center text-sm text-green-600">
+                  <Database size={16} className="mr-1" />
+                  Firebase Connected
+                </div>
+                <div className="flex items-center text-sm text-blue-600">
+                  <Wifi size={16} className="mr-1" />
+                  {firebaseReadings.length} Firebase readings
+                </div>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="text-sm text-gray-500">Last updated</p>
+              <p className="text-lg font-semibold text-gray-900">
+                {/* {currentReading ? format(new Date(currentReading.timestamp), 'HH:mm:ss') : '--:--:--'} */}
+                HH:mm:ss
+              </p>
+              <p className="text-xs text-gray-500">
+              HH:mm:ss
+                {/* {currentReading ? format(new Date(currentReading.timestamp), 'MMM dd, yyyy') : 'No data'} */}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Main Metrics Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <MetricCard
+            title="Current Temperature"
+            value={currentReading?.temperature || 0}
+            unit="°C"
+            icon={Thermometer}
+            trend={tempTrend > 0 ? 'up' : tempTrend < 0 ? 'down' : 'stable'}
+            trendValue={`${Math.abs(tempTrend).toFixed(1)}°C`}
+            color="blue"
           />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
+          <MetricCard
+            title="Humidity"
+            value={currentReading?.humidity || 0}
+            unit="%"
+            icon={Droplets}
+            color="green"
           />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
+          <MetricCard
+            title="Pressure"
+            value={currentReading?.pressure || 0}
+            unit="hPa"
+            icon={Gauge}
+            color="purple"
           />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          <MetricCard
+            title="Average Temp"
+            value={50}
+            unit="°C"
+            icon={TrendingUp}
+            color="yellow"
+          />
+        </div>
+
+        {/* Secondary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <Database className="h-8 w-8 text-blue-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Firebase Readings</p>
+                <p className="text-2xl font-bold text-gray-900">{firebaseReadings.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <Calendar className="h-8 w-8 text-green-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Readings</p>
+                <p className="text-2xl font-bold text-gray-900">{allReadings.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <MapPin className="h-8 w-8 text-red-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Locations</p>
+                <p className="text-2xl font-bold text-gray-900">{uniqueLocations.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="flex items-center">
+              <Zap className="h-8 w-8 text-yellow-600" />
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Range</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  60-180°C
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Data Source Info */}
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-800 mb-4">Data Sources</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
+              <div className="flex items-center">
+                <Database className="h-6 w-6 text-blue-600 mr-3" />
+                <div>
+                  <p className="font-medium text-gray-900">Firebase Realtime Database</p>
+                  <p className="text-sm text-gray-600">Live temperature readings</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-blue-600">{firebaseReadings.length}</p>
+                <p className="text-xs text-gray-500">readings</p>
+              </div>
+            </div>
+            
+            <div className="flex items-center justify-between p-4 bg-green-50 rounded-lg">
+              <div className="flex items-center">
+                <Activity className="h-6 w-6 text-green-600 mr-3" />
+                <div>
+                  <p className="font-medium text-gray-900">Local Cache</p>
+                  <p className="text-sm text-gray-600">Stored readings</p>
+                </div>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-bold text-green-600">{allReadings.length - firebaseReadings.length}</p>
+                <p className="text-xs text-gray-500">cached</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts Section */}
+        <div className="mb-8">
+          <TemperatureCharts currentReading={firebaseData} />
+        </div>
+
+        {/* Device Status */}
+        <DeviceStatus />
+      </div>
     </div>
   );
 }
