@@ -21,8 +21,8 @@ export const TemperatureCharts = ({ currentReading }: { currentReading: { temper
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-      <div className="p-4 bg-white rounded-lg shadow">
-      <h3 className="text-lg font-semibold mb-4">Current Temperature Gauge</h3>
+      <div className="p-4  text-black  bg-white rounded-lg shadow">
+      <h3 className="text-lg text-black font-semibold mb-4">Current Temperature Gauge</h3>
       <PieChart width={400} height={200}>
         <Pie
           data={pieData}
@@ -42,7 +42,7 @@ export const TemperatureCharts = ({ currentReading }: { currentReading: { temper
         <Tooltip />
       </PieChart>
       </div>
-      <div className="p-4 bg-white rounded-lg shadow">
+      <div className="p-4 bg-white text-black  rounded-lg shadow">
         <h3 className="text-lg font-semibold mb-4">Temperature History</h3>
         <LineChart width={400} height={400} data={readings}>
           <CartesianGrid strokeDasharray="3 3" />
