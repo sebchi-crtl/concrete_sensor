@@ -21,6 +21,12 @@ a {
   box-sizing: border-box;
 }
 
+*::selection {
+  background-color: #ff5e00;
+  color: #f1f1f1;
+  padding: 10px;
+}
+
 @media (prefers-color-scheme: dark) {
   html {
     color-scheme: dark;
