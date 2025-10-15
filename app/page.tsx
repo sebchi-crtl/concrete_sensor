@@ -17,49 +17,48 @@ import { format } from 'date-fns';
 import { MetricCard } from './_components/MetricCard';
 import { TemperatureCharts } from './_components/TemperatureCharts';
 import { DeviceStatus } from './_components/DeviceStatus';
-import { useQuery } from '@tanstack/react-query';
-import { database } from '@/lib/firebase';
-import { get, ref } from 'firebase/database';
+import { useSupabaseReadings } from '../hooks/useSupabaseReadings';
+import { getMaturityStatus } from '../lib/maturity';
 
 export default function Home() {
-  const { data: firebaseData, isLoading, error } = useQuery({
-    queryKey: ['temperature'],
-    queryFn: async () => {
-      const readingsRef = ref(database, 'readings');
-      const snapshot = await get(readingsRef);
-      return snapshot.val();
-    },
-    refetchInterval: 5000, // Refetch every 5 seconds
-  });
+  const { 
+    readings, 
+    currentReading, 
+    currentMaturity, 
+    averageTemperature, 
+    isLoading, 
+    error 
+  } = useSupabaseReadings();
   
   const { 
     getAllReadings,
-    currentReading, 
     getAverageTemperature, 
-    getTemperatureRange,
-    firebaseReadings
+    getTemperatureRange
   } = useTemperatureStore();
 
   const allReadings = getAllReadings();
   const avgTemp = getAverageTemperature();
   const tempRange = getTemperatureRange();
   
-  // Calculate trends
-  const recentReadings = allReadings.slice(-5);
+  // Calculate trends using Supabase readings
+  const recentReadings = readings.slice(0, 5);
   const tempTrend = recentReadings.length > 1 
-    ? recentReadings[recentReadings.length - 1].temperature - recentReadings[0].temperature
+    ? recentReadings[0].avg_temperature - recentReadings[recentReadings.length - 1].avg_temperature
     : 0;
 
   // Get unique locations and devices
-  const uniqueLocations = [...new Set(allReadings.map(r => r.location))];
-  const uniqueDevices = [...new Set(allReadings.map(r => r.deviceId))];
+  const uniqueLocations = [...new Set(readings.map(r => r.location).filter(Boolean))];
+  const uniqueDevices = [...new Set(readings.map(r => r.device_id).filter(Boolean))];
+
+  // Get maturity status
+  const maturityStatus = getMaturityStatus(currentMaturity);
 
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-lg text-gray-600">Loading Firebase data...</p>
+          <p className="mt-4 text-lg text-gray-600">Loading Supabase data...</p>
           <p className="text-sm text-gray-500">Connecting to database...</p>
         </div>
       </div>
@@ -71,14 +70,14 @@ export default function Home() {
       <div className="min-h-screen bg-gradient-to-br from-red-50 to-pink-100 flex items-center justify-center">
         <div className="text-center max-w-md">
           <div className="text-red-600 text-6xl mb-4">⚠️</div>
-          <h2 className="text-xl font-semibold text-red-800 mb-2">Firebase Connection Error</h2>
+          <h2 className="text-xl font-semibold text-red-800 mb-2">Supabase Connection Error</h2>
           <p className="text-red-600 mb-4">{error.message}</p>
           <div className="bg-red-100 border border-red-300 rounded-lg p-4 text-left">
             <p className="text-sm text-red-700 mb-2">Please check:</p>
             <ul className="text-xs text-red-600 space-y-1">
-              <li>• Firebase configuration in .env.local</li>
-              <li>• Database rules allow read access</li>
-              <li>• "readings" collection exists in Firebase</li>
+              <li>• Supabase configuration in .env.local</li>
+              <li>• Database permissions allow read access</li>
+              <li>• "readings" table exists in Supabase</li>
               <li>• Internet connection is stable</li>
             </ul>
           </div>
@@ -94,28 +93,37 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Consor</h1>
-              <p className="text-gray-600 mt-1">Real-time Firebase monitoring system</p>
+              <h1 className="text-3xl font-bold text-gray-900">Concrete Maturity Monitor</h1>
+              <p className="text-gray-600 mt-1">Real-time Supabase monitoring system</p>
               <div className="flex items-center mt-2 space-x-4">
                 <div className="flex items-center text-sm text-green-600">
                   <Database size={16} className="mr-1" />
-                  Firebase Connected
+                  Supabase Connected
                 </div>
                 <div className="flex items-center text-sm text-blue-600">
                   <Wifi size={16} className="mr-1" />
-                  {firebaseReadings.length} Firebase readings
+                  {readings.length} readings
+                </div>
+                <div className={`flex items-center text-sm ${
+                  maturityStatus.color === 'blue' ? 'text-blue-600' :
+                  maturityStatus.color === 'green' ? 'text-green-600' :
+                  maturityStatus.color === 'yellow' ? 'text-yellow-600' :
+                  maturityStatus.color === 'red' ? 'text-red-600' :
+                  maturityStatus.color === 'orange' ? 'text-orange-600' :
+                  'text-gray-600'
+                }`}>
+                  <Activity size={16} className="mr-1" />
+                  Maturity: {maturityStatus.status}
                 </div>
               </div>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Last updated</p>
               <p className="text-lg font-semibold text-gray-900">
-                {/* {currentReading ? format(new Date(currentReading.timestamp), 'HH:mm:ss') : '--:--:--'} */}
-                HH:mm:ss
+                {currentReading ? format(new Date(currentReading.timestamp), 'HH:mm:ss') : '--:--:--'}
               </p>
               <p className="text-xs text-gray-500">
-              HH:mm:ss
-                {/* {currentReading ? format(new Date(currentReading.timestamp), 'MMM dd, yyyy') : 'No data'} */}
+                {currentReading ? format(new Date(currentReading.timestamp), 'MMM dd, yyyy') : 'No data'}
               </p>
             </div>
           </div>
@@ -126,32 +134,32 @@ export default function Home() {
         {/* Main Metrics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <MetricCard
-            title="Current Temperature"
-            value={currentReading?.temperature || 0}
-            unit="°C"
-            icon={Thermometer}
+            title="Maturity"
+            value={currentMaturity}
+            unit=""
+            icon={Activity}
             trend={tempTrend > 0 ? 'up' : tempTrend < 0 ? 'down' : 'stable'}
             trendValue={`${Math.abs(tempTrend).toFixed(1)}°C`}
+            color={maturityStatus.color as "blue" | "green" | "yellow" | "red" | "purple"}
+          />
+          <MetricCard
+            title="Current Temperature"
+            value={currentReading?.avg_temperature || 0}
+            unit="°C"
+            icon={Thermometer}
             color="blue"
           />
           <MetricCard
-            title="Humidity"
-            value={currentReading?.humidity || 0}
+            title="Battery Level"
+            value={currentReading?.battery_level || 0}
             unit="%"
             icon={Droplets}
             color="green"
           />
           <MetricCard
-            title="Pressure"
-            value={currentReading?.pressure || 0}
-            unit="hPa"
-            icon={Gauge}
-            color="purple"
-          />
-          <MetricCard
-            title="Average Temp"
-            value={50}
-            unit="°C"
+            title="Sensor Count"
+            value={currentReading?.sensor_count || 0}
+            unit=""
             icon={TrendingUp}
             color="yellow"
           />
@@ -163,8 +171,8 @@ export default function Home() {
             <div className="flex items-center">
               <Database className="h-8 w-8 text-blue-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Firebase Readings</p>
-                <p className="text-2xl font-bold text-gray-900">{firebaseReadings.length}</p>
+                <p className="text-sm font-medium text-gray-600">Supabase Readings</p>
+                <p className="text-2xl font-bold text-gray-900">{readings.length}</p>
               </div>
             </div>
           </div>
@@ -191,11 +199,11 @@ export default function Home() {
           
           <div className="bg-white rounded-xl shadow-lg p-6">
             <div className="flex items-center">
-              <Zap className="h-8 w-8 text-yellow-600" />
+              <Activity className="h-8 w-8 text-yellow-600" />
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Range</p>
+                <p className="text-sm font-medium text-gray-600">Maturity Status</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  60-180°C
+                  {maturityStatus.status}
                 </p>
               </div>
             </div>
@@ -210,12 +218,12 @@ export default function Home() {
               <div className="flex items-center">
                 <Database className="h-6 w-6 text-blue-600 mr-3" />
                 <div>
-                  <p className="font-medium text-gray-900">Firebase Realtime Database</p>
+                  <p className="font-medium text-gray-900">Supabase Database</p>
                   <p className="text-sm text-gray-600">Live temperature readings</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-blue-600">{firebaseReadings.length}</p>
+                <p className="text-lg font-bold text-blue-600">{readings.length}</p>
                 <p className="text-xs text-gray-500">readings</p>
               </div>
             </div>
@@ -224,13 +232,13 @@ export default function Home() {
               <div className="flex items-center">
                 <Activity className="h-6 w-6 text-green-600 mr-3" />
                 <div>
-                  <p className="font-medium text-gray-900">Local Cache</p>
-                  <p className="text-sm text-gray-600">Stored readings</p>
+                  <p className="font-medium text-gray-900">Maturity Calculation</p>
+                  <p className="text-sm text-gray-600">Formula: M = Σ(Ta - To)Δt</p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-lg font-bold text-green-600">{allReadings.length - firebaseReadings.length}</p>
-                <p className="text-xs text-gray-500">cached</p>
+                <p className="text-lg font-bold text-green-600">{currentMaturity.toFixed(1)}</p>
+                <p className="text-xs text-gray-500">maturity</p>
               </div>
             </div>
           </div>
@@ -238,7 +246,7 @@ export default function Home() {
 
         {/* Charts Section */}
         <div className="mb-8">
-          <TemperatureCharts currentReading={firebaseData} />
+          <TemperatureCharts currentReading={currentReading} />
         </div>
 
         {/* Device Status */}

@@ -5,13 +5,18 @@ import { LineChart, Line, PieChart, Pie, XAxis, YAxis, CartesianGrid, Tooltip, C
 import { useTemperatureStore } from '../../store/temperatureStore';
 
 
-export const TemperatureCharts = ({ currentReading }: { currentReading: { temperature: number; timestamp: string } }) => {
+export const TemperatureCharts = ({ currentReading }: { currentReading: { avg_temperature: number; timestamp: string } | null }) => {
   const { readings, addReading } = useTemperatureStore();
   
-  const temperature = Math.min(Math.max(currentReading.temperature, 0), 100); // Clamp between 0 and 100
+  const temperature = currentReading ? Math.min(Math.max(currentReading.avg_temperature, 0), 100) : 0; // Clamp between 0 and 100
 
   useEffect(() => {
-    addReading(currentReading);
+    if (currentReading) {
+      addReading({
+        temperature: currentReading.avg_temperature,
+        timestamp: currentReading.timestamp
+      });
+    }
   }, [currentReading, addReading]);
 
   const pieData = [
