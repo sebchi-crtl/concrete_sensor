@@ -16,9 +16,21 @@ import {
 import { format } from 'date-fns';
 import { MetricCard } from './_components/MetricCard';
 import { TemperatureCharts } from './_components/TemperatureCharts';
-import { DeviceStatus } from './_components/DeviceStatus';
+import { TemperatureTable } from './_components/TemperatureTable';
 import { useSupabaseReadings } from '../hooks/useSupabaseReadings';
 import { getMaturityStatus } from '../lib/maturity';
+
+// Helper function to safely format timestamp
+const formatTimestamp = (timestamp: string | undefined, formatString: string, fallback: string): string => {
+  if (!timestamp) return fallback;
+  try {
+    const date = new Date(timestamp);
+    if (isNaN(date.getTime())) return fallback;
+    return format(date, formatString);
+  } catch {
+    return fallback;
+  }
+};
 
 export default function Home() {
   const { 
@@ -120,10 +132,10 @@ export default function Home() {
             <div className="text-right">
               <p className="text-sm text-gray-500">Last updated</p>
               <p className="text-lg font-semibold text-gray-900">
-                {currentReading ? format(new Date(currentReading.timestamp), 'HH:mm:ss') : '--:--:--'}
+                {formatTimestamp(currentReading?.timestamp, 'HH:mm:ss', '--:--:--')}
               </p>
               <p className="text-xs text-gray-500">
-                {currentReading ? format(new Date(currentReading.timestamp), 'MMM dd, yyyy') : 'No data'}
+                {formatTimestamp(currentReading?.timestamp, 'MMM dd, yyyy', 'No data')}
               </p>
             </div>
           </div>
@@ -249,8 +261,8 @@ export default function Home() {
           <TemperatureCharts currentReading={currentReading} />
         </div>
 
-        {/* Device Status */}
-        <DeviceStatus />
+        {/* Temperature Table */}
+        <TemperatureTable readings={readings} />
       </div>
     </div>
   );
